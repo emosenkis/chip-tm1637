@@ -1,13 +1,6 @@
 #!/usr/bin/env python3
-
-import subprocess
 from time import time, sleep, localtime
-
-from wiringpi2 import wiringPiSetupGpio, pinMode, digitalRead, digitalWrite, GPIO
-wiringPiSetupGpio()
-
-CLK = 21
-DIO = 20
+import CHIP_IO.GPIO as GPIO
 
 """
       A
@@ -17,7 +10,6 @@ DIO = 20
   E |   | C
      ---
       D
-
 """
 
 
@@ -49,10 +41,10 @@ class TM1637:
         self.dio = dio
         self.brightness = 0x0f
 
-        pinMode(self.clk, GPIO.INPUT)
-        pinMode(self.dio, GPIO.INPUT)
-        digitalWrite(self.clk, GPIO.LOW)
-        digitalWrite(self.dio, GPIO.LOW)
+        GPIO.setup(self.clk, GPIO.OUT)
+        GPIO.setup(self.dio, GPIO.OUT)
+        GPIO.output(self.clk, GPIO.HIGH)
+        GPIO.output(self.dio, GPIO.HIGH)
 
     def bit_delay(self):
         return
@@ -77,50 +69,41 @@ class TM1637:
         self.stop()
 
     def start(self):
-        pinMode(self.dio, GPIO.OUTPUT)
+        GPIO.output(self.dio, GPIO.LOW)
         self.bit_delay()
    
     def stop(self):
-        pinMode(self.dio, GPIO.OUTPUT)
+        GPIO.output(self.dio, GPIO.LOW)
         self.bit_delay()
-        pinMode(self.clk, GPIO.INPUT)
+        GPIO.output(self.clk, GPIO.HIGH)
         self.bit_delay()
-        pinMode(self.dio, GPIO.INPUT)
+        GPIO.output(self.dio, GPIO.HIGH)
         self.bit_delay()
   
     def write_byte(self, b):
-      # 8 Data Bits
+        # 8 Data Bits
         for i in range(8):
 
             # CLK low
-            pinMode(self.clk, GPIO.OUTPUT)
+            GPIO.output(self.clk, GPIO.LOW)
             self.bit_delay()
 
-            pinMode(self.dio, GPIO.INPUT if b & 1 else GPIO.OUTPUT)
+            GPIO.output(self.dio, GPIO.HIGH if b & 1 else GPIO.LOW)
 
             self.bit_delay()
 
-            pinMode(self.clk, GPIO.INPUT)
+            GPIO.output(self.clk, GPIO.HIGH)
             self.bit_delay()
             b >>= 1
       
-        pinMode(self.clk, GPIO.OUTPUT)
+        GPIO.output(self.clk, GPIO.LOW)
         self.bit_delay()
-        pinMode(self.clk, GPIO.INPUT)
+        GPIO.output(self.clk, GPIO.HIGH)
         self.bit_delay()
-        pinMode(self.clk, GPIO.OUTPUT)
+        GPIO.output(self.clk, GPIO.LOW)
         self.bit_delay()
 
         return
-
-
-def show_ip_address(tm):
-    ipaddr = subprocess.check_output("hostname -I", shell=True, timeout=1).strip().split(b".")
-    for octet in ipaddr:
-        tm.set_segments([0, 0, 0, 0])
-        sleep(0.1)
-        tm.set_segments([tm.digit_to_segment[int(x) & 0xf] for x in octet])
-        sleep(0.9)
 
 
 def show_clock(tm):
@@ -136,12 +119,11 @@ def show_clock(tm):
 
 
 if __name__ == "__main__":
-    tm = TM1637(CLK, DIO)
+    tm = TM1637(clk='XIO-P1', dio='XIO-P0')
 
-    show_ip_address(tm)
-
-    while True:
-        show_clock(tm)
-
-
-
+    try:
+        while True:
+            show_clock(tm)
+    finally:
+        tm.set_segments([0, 0, 0, 0])
+        GPIO.cleanup()
